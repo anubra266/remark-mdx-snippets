@@ -11,5 +11,7 @@
 		"emitDeclarationOnly": true,
 		"skipLibCheck": true
 	},
-	"include": ["index.js", "unist-util-find.d.ts"]
+	"include": ["index.js"],
+	"exclude": ["node_modules"]
+
 }

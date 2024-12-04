@@ -1,203 +1,185 @@
+import path from 'node:path';
+import fs from 'node:fs';
 import tap from 'tap';
-import {remark} from 'remark';
-import behead from './index.js';
+import remark from 'remark';
+import remarkMdx from 'remark-mdx';
+import {mdxSnippet} from './index.js';
 
-tap.test('remark-behead', (t) => {
-	let actual;
+tap.Test.prototype.capture = function (target, method) {
+	const original = target[method];
+	const calls = [];
 
-	t.throws(() => {
-		remark().use(behead, {depth: 'foo'}).processSync('# foo').toString();
-	}, 'Expect a `number` for `depth` option');
+	target[method] = (...args) => {
+		calls.push(args);
+	};
 
-	t.throws(() => {
-		remark().use(behead, {minDepth: 'foo'}).processSync('# foo').toString();
-	}, 'Expect a `number` between 2 and 6 for `minDepth` option');
-	t.throws(() => {
-		remark().use(behead, {minDepth: 0}).processSync('# foo').toString();
-	}, 'Expect a `number` between 2 and 6 for `minDepth` option');
+	// Restore the original method when the test ends
+	this.teardown(() => {
+		target[method] = original;
+	});
 
-	t.throws(() => {
-		remark()
-			.use(behead, {depth: 1, minDepth: 2})
-			.processSync('# foo')
-			.toString();
-	}, 'Expect only one of the `depth` and `minDepth` options');
+	return {
+		calls,
+		restore: () => {
+			target[method] = original;
+		},
+	};
+};
 
-	t.throws(() => {
-		remark()
-			.use(behead, {after: 1, before: 0, between: [0, 1]})
-			.processSync('# foo')
-			.toString();
-	}, 'Expect only one of the `after`, `before` and `between` options');
-	t.throws(() => {
-		remark().use(behead, {after: 1, before: 0}).processSync('# foo').toString();
-	}, 'Expect only one of the `after`, `before` and `between` options');
+// Create some test snippet files
+const snippets = {
+	'simple.mdx': '# Hello Snippet\n\nThis is a simple snippet.',
+	'code.mdx': 'function hello() {\n  console.log("World");\n}',
+	'nested.mdx': '## Nested Heading\n\n- List item 1\n- List item 2',
+};
 
-	t.throws(() => {
-		remark().use(behead, {before: {}}).processSync('# foo').toString();
-	}, 'Expect a finite index or child `node`');
-	t.throws(() => {
-		remark().use(behead, {after: {}}).processSync('# foo').toString();
-	}, 'Expect a finite index or child `node`');
-	t.throws(() => {
-		remark().use(behead, {before: -1}).processSync('# foo').toString();
-	}, 'Expect a finite index or child `node`');
-	t.throws(() => {
-		remark().use(behead, {after: 2}).processSync('# foo').toString();
-	}, 'Expect a finite index or child `node`');
-	t.throws(() => {
-		remark()
-			.use(behead, {between: [-1, 0]})
-			.processSync('# foo')
-			.toString();
-	}, 'Expect a finite index or child `node`');
+// Utility to create a temporary snippets directory for testing
+function setupTempSnippetsDir() {
+	const tempDir = path.join(process.cwd(), '_test_snippets');
 
-	t.throws(() => {
-		remark().use(behead, {between: {}}).processSync('# foo').toString();
-	}, 'Expected an `array` with two elements for `between` option');
-	t.throws(() => {
-		remark()
-			.use(behead, {between: [0]})
-			.processSync('# foo')
-			.toString();
-	}, 'Expected an `array` with two elements for `between` option');
+	// Ensure the directory exists
+	if (!fs.existsSync(tempDir)) {
+		fs.mkdirSync(tempDir);
+	}
 
-	t.doesNotThrow(() => {
-		t.ok(remark().use(behead).freeze());
-		t.equal(
-			(actual = remark()
-				.use(behead, {
-					after: {type: 'heading', children: [{value: 'foo'}]},
-					depth: 1,
-				})
-				.processSync(['# foo', '# bar'].join('\n'))
-				.toString()),
-			'# foo\n\n## bar\n',
-			actual
+	Object.entries(snippets).forEach(([filename, content]) => {
+		fs.writeFileSync(path.join(tempDir, filename), content);
+	});
+
+	return {
+		dir: tempDir,
+		cleanup: () => {
+			// Remove all files
+			Object.keys(snippets).forEach((filename) => {
+				fs.unlinkSync(path.join(tempDir, filename));
+			});
+			// Remove directory
+			fs.rmdirSync(tempDir);
+		},
+	};
+}
+
+tap.test('mdxSnippet plugin', (t) => {
+	// Setup temporary snippets directory
+	const {dir: snippetsDir, cleanup} = setupTempSnippetsDir();
+
+	t.teardown(cleanup);
+
+	t.test('Basic snippet inclusion', (st) => {
+		const mdx = `
+# Test Document
+
+<Snippet file="simple.mdx" />
+`;
+		const processor = remark().use(remarkMdx).use(mdxSnippet, {snippetsDir});
+
+		const result = processor.processSync(mdx).toString();
+
+		st.match(result, /# Hello Snippet/, 'Should include snippet content');
+		st.match(
+			result,
+			/This is a simple snippet\./,
+			'Should include full snippet'
 		);
+		st.end();
+	});
 
-		t.equal(
-			(actual = remark()
-				.use(behead, {after: 0, depth: 1})
-				.processSync(['# foo', '# bar'].join('\n'))
-				.toString()),
-			'# foo\n\n## bar\n',
-			actual
-		);
+	t.test('Custom element and file attribute names', (st) => {
+		const mdx = `
+	# Test Document
 
-		t.equal(
-			(actual = remark()
-				.use(behead, {before: 1, depth: 1})
-				.processSync(['# foo', '# bar'].join('\n'))
-				.toString()),
-			'## foo\n\n# bar\n',
-			actual
-		);
+	<CodeSnippet source="simple.mdx" />
+	`;
+		const processor = remark().use(remarkMdx).use(mdxSnippet, {
+			snippetsDir,
+			elementName: 'CodeSnippet',
+			fileAttribute: 'source',
+		});
 
-		t.equal(
-			(actual = remark().use(behead, {}).processSync('# foo').toString()),
-			'# foo\n',
-			actual
-		);
+		const result = processor.processSync(mdx).toString();
 
-		t.equal(
-			(actual = remark()
-				.use(behead, {depth: 1})
-				.processSync('# foo')
-				.toString()),
-			'## foo\n',
-			actual
-		);
+		st.match(result, /# Hello Snippet/, 'Should work with custom element name');
+		st.end();
+	});
 
-		t.equal(
-			(actual = remark()
-				.use(behead, {depth: -1})
-				.processSync('## foo')
-				.toString()),
-			'# foo\n',
-			actual
-		);
+	t.test('Error handling - missing file attribute', (st) => {
+		const mdx = `
+	# Test Document
 
-		t.equal(
-			(actual = remark()
-				.use(behead, {depth: 100})
-				.processSync('## foo')
-				.toString()),
-			'###### foo\n',
-			actual
-		);
+	<Snippet />
+	`;
+		const consoleWarnSpy = st.capture(console, 'warn');
 
-		t.equal(
-			(actual = remark()
-				.use(behead, {depth: -100})
-				.processSync('## foo')
-				.toString()),
-			'# foo\n',
-			actual
-		);
+		const processor = remark().use(remarkMdx).use(mdxSnippet, {snippetsDir});
 
-		t.equal(
-			(actual = remark()
-				.use(behead, {after: 'foo', depth: 1})
-				.processSync('# foo\n# bar')
-				.toString()),
-			'# foo\n\n## bar\n',
-			actual
-		);
+		st.doesNotThrow(() => {
+			processor.processSync(mdx);
+		}, 'Should not throw on missing file attribute');
 
-		t.equal(
-			(actual = remark()
-				.use(behead, {before: 'bar', depth: 1})
-				.processSync('# foo\n# bar')
-				.toString()),
-			'## foo\n\n# bar\n',
-			actual
+		st.match(
+			consoleWarnSpy.calls[0][0],
+			/Snippet tag missing required "file" attribute/,
+			'Should log warning for missing file attribute'
 		);
+		st.end();
+	});
 
-		t.equal(
-			(actual = remark()
-				.use(behead, {between: ['foo', 'baz'], depth: 1})
-				.processSync(['# foo', '# bar', '# baz'].join('\n'))
-				.toString()),
-			'# foo\n\n## bar\n\n# baz\n',
-			actual
-		);
+	t.test('Error handling - non-existent file', (st) => {
+		const mdx = `
+	# Test Document
 
-		t.equal(
-			(actual = remark()
-				.use(behead, {minDepth: 2})
-				.processSync(['# foo', '## bar', '### baz'].join('\n'))
-				.toString()),
-			'## foo\n\n### bar\n\n#### baz\n',
-			actual
-		);
+	<Snippet file="non-existent.mdx" />
+	`;
+		const consoleErrorSpy = st.capture(console, 'error');
 
-		t.equal(
-			(actual = remark()
-				.use(behead, {minDepth: 2})
-				.processSync(['## foo', '## bar', '### baz'].join('\n'))
-				.toString()),
-			'## foo\n\n## bar\n\n### baz\n',
-			actual
-		);
+		const processor = remark().use(remarkMdx).use(mdxSnippet, {snippetsDir});
 
-		t.equal(
-			(actual = remark()
-				.use(behead, {minDepth: 3})
-				.processSync(['# foo', '## bar', '#### baz'].join('\n'))
-				.toString()),
-			'### foo\n\n#### bar\n\n###### baz\n',
-			actual
-		);
+		st.doesNotThrow(() => {
+			processor.processSync(mdx);
+		}, 'Should not throw on non-existent file');
 
-		t.equal(
-			(actual = remark()
-				.use(behead, {between: ['foo', 'baz'], minDepth: 2})
-				.processSync(['# foo', '# bar', '# baz'].join('\n'))
-				.toString()),
-			'# foo\n\n## bar\n\n# baz\n',
-			actual
+		st.match(
+			consoleErrorSpy.calls[0][0],
+			/Error reading snippet file/,
+			'Should log error for non-existent file'
 		);
-	}, 'Should not throw');
+		st.end();
+	});
+
+	t.test('Multiple snippet inclusions', (st) => {
+		const mdx = `
+	# Test Document
+
+	<Snippet file="simple.mdx" />
+
+	Some content
+
+	<Snippet file="code.mdx" />
+	`;
+		const processor = remark().use(remarkMdx).use(mdxSnippet, {snippetsDir});
+
+		const result = processor.processSync(mdx).toString();
+
+		st.match(result, /# Hello Snippet/, 'Should include first snippet');
+		st.match(result, /function hello\(\)/, 'Should include second snippet');
+		st.end();
+	});
+
+	// Nested processing test
+	t.test('Nested snippet processing', (st) => {
+		const mdx = `
+	# Test Document
+
+	<Snippet file="nested.mdx" />
+	`;
+		const processor = remark().use(remarkMdx).use(mdxSnippet, {snippetsDir});
+
+		const result = processor.processSync(mdx).toString();
+
+		st.match(result, /## Nested Heading/, 'Should preserve nested structure');
+		st.match(result, /- List item 1/, 'Should include list items');
+		st.end();
+	});
+
 	t.end();
 });

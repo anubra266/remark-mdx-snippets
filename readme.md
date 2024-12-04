@@ -1,142 +1,113 @@
-# remark-behead
+<div align="center">
 
-[![Build Status](https://img.shields.io/travis/mrzmmr/remark-behead?style=flat-square)](https://travis-ci.org/mrzmmr/remark-behead)
-[![Coverage Status](https://img.shields.io/coveralls/github/mrzmmr/remark-behead?style=flat-square)](https://coveralls.io/github/mrzmmr/remark-behead)
-[![Standard Readme Compliant](https://img.shields.io/badge/standard--readme-OK-green.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
-[![Dependency Status](https://img.shields.io/librariesio/release/npm/remark-behead?style=flat-square)](https://libraries.io/npm/remark-behead)
+  <h1>
+    <br/>
+    🏇
+    <br />
+    remark-mdx-snippets
+    <br />
+    <br />
+  </h1>
+  <sup>
+    <br />
+    <br />
+    <a href="https://www.npmjs.com/package/remark-mdx-snippets?style=for-the-badge">
+       <img src="https://img.shields.io/npm/v/remark-mdx-snippets.svg?style=for-the-badge" alt="npm package" />
+    </a>
+    <a href="https://www.npmjs.com/package/remark-mdx-snippets?style=for-the-badge">
+      <img src="https://img.shields.io/npm/dw/remark-mdx-snippets.svg?style=for-the-badge" alt="npm  downloads" />
+    </a>
+<a>
+    <img alt="NPM" src="https://img.shields.io/npm/l/remark-mdx-snippets?style=for-the-badge">
+</a>
 
-> Increase or decrease heading depth
+<a><img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/anubra266/remark-mdx-snippets?logo=github&style=for-the-badge">
 
-remark-behead is a [remark](https://github.com/remarkjs/remark) plugin to
-increase or decrease heading depths, where the depth is changed either
-relatively or by means of minimum.
-
-## Table of Contents
-
-- [Install](#install)
-- [Usage](#usage)
-- [Contribute](#contribute)
-- [License](#license)
+</a>
+    <br />
+   Snippets for your markdown
+    
+  </sup>
+  <br />
+  <br />
+  <br />
+  <br />
+  <pre>npm i <a href="https://www.npmjs.com/package/remark-mdx-snippets">remark-mdx-snippets</a></pre>
+  <br />
+  <br />
+  <br />
+  <br />
+  <br />
+</div>
 
 ## Install
 
-```sh
-npm install --save remark-behead
+```bash
+npm i --save remark-mdx-snippets
+#or
+yarn add remark-mdx-snippets
+#or
+pnpm add remark-mdx-snippets
 ```
+
+## About
+
+Reusable and nestable snippets inspired by [Mintlify](https://mintlify.com/docs/reusable-snippets)
 
 ## Usage
 
-```js
-import behead from 'remark-behead';
+### Remark
+
+```ts
+import remarkMDXSnippets from 'remark-mdx-snippets';
+import {remark} from 'remark';
+
+remark().use(remarkMDXSnippets).process(`<Snippet file="snippet" />`);
+```
+
+### Markdown
+
+1. Have a folder that stores snippets. By default the plugin checks the `_snippets` folder in your root directory.
+2. In your markdown (`.mdx`)
+
+```jsx
+## Some title
+
+Any normal markdown content
+
+<Snippet file="a-snippet-file.mdx" />
+```
+
+The plugin then checks your `_snippets` for a `<file>.mdx` In this example it finds `a-snippet-file.mdx`. THe content of the file is then resolved like it was written in the current markdown.
+
+**NB:**
+
+1.  You can use snippets within snippets. (nesting)
+2.  You can have folders within the snippets directory, you don't have to put all snippets flat in that folder.
+
+## Configure
+
+```ts
+import remarkMDXSnippets from 'remark-mdx-snippets';
 import {remark} from 'remark';
 
 remark()
-	.use(behead, {depth: 1, after: 0})
-	.process(['# foo', '# bar', '# baz'].join('\n'))
-	.then((vfile) => vfile.toString())
-	.then((markdown) => console.log(markdown))
-	.catch((err) => console.error(err));
-/*
- * # foo
- *
- * ## bar
- *
- * ## baz
- */
-
-remark()
-	.use(behead, {minDepth: 2})
-	.process(['# foo', '## bar', '### baz'].join('\n'))
-	.then((vfile) => vfile.toString())
-	.then((markdown) => console.log(markdown))
-	.catch((err) => console.error(err));
-/*
- * ## foo
- *
- * ### bar
- *
- * #### baz
- */
+	.use(remarkMDXSnippets, {
+		// Use a different directory to resolve snippets
+		snippetsDir: path.resolve(process.cwd(), 'includes'),
+		// Cchange attribute or element name
+		fileAttribute: 'path',
+		elementName: 'CodeSnippet',
+	})
+	.process(`<CodeSnippet path="snippet/path" />`);
 ```
 
-### Options
+## Sponsors ✨
 
-Specify the _depth change_ by providing one of the following options:
+Thanks goes to these wonderful people
 
-- `depth` [ [Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) ]
-- `minDepth` [ 2 | 3 | 4 | 5 | 6 ]
-
-Specify the _scope_ by providing one of the following options:
-
-- `after` [ NodeSpecifier ]
-- `before` [ NodeSpecifier ]
-- `between` [array](https://developer.mozilla.org/en-us/docs/web/javascript/reference/global_objects/array) **[** [ NodeSpecifier ] **,** [ NodeSpecifier ] **]**
-
-`NodeSpecifier` [ [string](https://developer.mozilla.org/en-us/docs/web/javascript/reference/global_objects/string) | [Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object) ] - When string, look for a heading with given value. When number, look for node at given index. When object, look for a node with given keys / values.
-
-### options.depth
-
-Passing a negative value will decrease the heading depth by the given amount.
-Passing a positive value will increase the heading depth by the given amount.
-
-### options.minDepth
-
-The heading depth will be increased accordingly to match the given minimal depth. If there are no headings with a smaller depth than the minimum depth, nothing is changed.
-
-### options.after
-
-Manipulates heading nodes after but not including the given node specifier.
-
-**example**
-
-```js
-remark()
-	.use(behead, {after: 'foo', depth: 1})
-	.processSync('# foo\n# bar\n# baz');
-
-/* # foo\n\n## bar\n\n## baz\n */
-```
-
-### options.before
-
-Manipulates heading nodes before but not including the given node specifier.
-
-**example**
-
-```js
-remark()
-	.use(behead, {before: 'baz', depth: 1})
-	.processSync('# foo\n\n# bar\n# baz\n');
-
-/* ## foo\n\n## bar\n\n# baz\n */
-```
-
-### options.between
-
-Manipulates heading nodes between but not including the two given node specifiers,
-starting with options.between[0] and ending with options.between[1].
-
-**example**
-
-```js
-remark()
-	.use(behead, {between: [0, 'baz'], depth: 1})
-	.processSync('# foo\n# bar\n# baz');
-
-/* # foo\n\n## bar\n\n# baz\n' */
-```
-
-## Tests
-
-```sh
-npm install
-npm test
-```
-
-## Contribute
-
-PRs accepted and greatly appreciated.
-
-## License
-
-MIT © mrzmmr
+<p align="center">
+  <a href="https://patreon.com/anubra266?utm_medium=clipboard_copy&utm_source=copyLink&utm_campaign=creatorshare_creator&utm_content=join_link">
+    <img src='https://cdn.jsdelivr.net/gh/anubra266/static@main/sponsors.svg'/>
+  </a>
+</p>
