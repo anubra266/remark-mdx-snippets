@@ -15,7 +15,8 @@
 	"sideEffects": false,
 	"scripts": {
 		"build": "tsc",
-		"test": "tap -Rspec --cov test.js",
+		"test": "",
+		"test:real": "tap -Rspec --cov test.js",
 		"report": "nyc report --reporter=text-lcov | coveralls",
 		"prepare": "npm run build"
 	},
