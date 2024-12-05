@@ -14,6 +14,7 @@ import remarkMdx from 'remark-mdx';
  * @property {string} [snippetsDir] - Directory to resolve snippet files from
  * @property {string} [fileAttribute] - Custom attribute name for file path (default: 'file')
  * @property {string} [elementName] - Custom element name for snippets (default: 'Snippet')
+ * @property {any} [processor] - Custom processor
  */
 
 /**
@@ -27,6 +28,7 @@ export function mdxSnippet(options = {}) {
 		snippetsDir = path.resolve(process.cwd(), '_snippets'),
 		fileAttribute = 'file',
 		elementName = 'Snippet',
+		processor: unified,
 	} = options;
 
 	return (tree, file) => {
@@ -66,12 +68,16 @@ export function mdxSnippet(options = {}) {
 				return [node];
 			}
 
-			const processor = remark()
-				.use(remarkGfm)
-				// @ts-ignore
-				.use(remarkStringify)
-				// @ts-ignore
-				.use(remarkMdx)
+			const processor =
+				unified ??
+				remark()
+					.use(remarkGfm)
+					// @ts-ignore
+					.use(remarkStringify)
+					// @ts-ignore
+					.use(remarkMdx);
+
+			processor()
 				// @ts-ignore
 				.use(mdxSnippet, options);
 

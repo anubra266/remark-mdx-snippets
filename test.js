@@ -1,9 +1,11 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import tap from 'tap';
-import remark from 'remark';
 import remarkMdx from 'remark-mdx';
+import remarkStringify from 'remark-stringify';
 import {mdxSnippet} from './index.js';
+import {unified} from 'unified';
+import remarkParse from 'remark-parse';
 
 tap.Test.prototype.capture = function (target, method) {
 	const original = target[method];
@@ -26,11 +28,23 @@ tap.Test.prototype.capture = function (target, method) {
 	};
 };
 
+function mock(mdx, cb) {
+	const processor = unified().use(remarkParse).use(remarkMdx);
+	cb(processor);
+	processor.use(remarkStringify);
+
+	const tree = processor.parse(mdx);
+	const transformedTree = processor.runSync(tree);
+	const result = processor.stringify(transformedTree);
+	return result;
+}
+
 // Create some test snippet files
 const snippets = {
 	'simple.mdx': '# Hello Snippet\n\nThis is a simple snippet.',
-	'code.mdx': 'function hello() {\n  console.log("World");\n}',
-	'nested.mdx': '## Nested Heading\n\n- List item 1\n- List item 2',
+	'secondary.mdx': '# Secondary Snippet\n\nThis is another simple snippet.',
+	'nested.mdx': '## Nested Heading\n\n<Snippet file="child.mdx" />',
+	'child.mdx': '- List item 1\n- List item 2',
 };
 
 // Utility to create a temporary snippets directory for testing
@@ -71,9 +85,10 @@ tap.test('mdxSnippet plugin', (t) => {
 
 <Snippet file="simple.mdx" />
 `;
-		const processor = remark().use(remarkMdx).use(mdxSnippet, {snippetsDir});
 
-		const result = processor.processSync(mdx).toString();
+		const result = mock(mdx, (processor) =>
+			processor.use(mdxSnippet, {snippetsDir})
+		);
 
 		st.match(result, /# Hello Snippet/, 'Should include snippet content');
 		st.match(
@@ -90,13 +105,14 @@ tap.test('mdxSnippet plugin', (t) => {
 
 	<CodeSnippet source="simple.mdx" />
 	`;
-		const processor = remark().use(remarkMdx).use(mdxSnippet, {
-			snippetsDir,
-			elementName: 'CodeSnippet',
-			fileAttribute: 'source',
-		});
 
-		const result = processor.processSync(mdx).toString();
+		const result = mock(mdx, (processor) =>
+			processor.use(mdxSnippet, {
+				snippetsDir,
+				elementName: 'CodeSnippet',
+				fileAttribute: 'source',
+			})
+		);
 
 		st.match(result, /# Hello Snippet/, 'Should work with custom element name');
 		st.end();
@@ -110,10 +126,8 @@ tap.test('mdxSnippet plugin', (t) => {
 	`;
 		const consoleWarnSpy = st.capture(console, 'warn');
 
-		const processor = remark().use(remarkMdx).use(mdxSnippet, {snippetsDir});
-
 		st.doesNotThrow(() => {
-			processor.processSync(mdx);
+			mock(mdx, (processor) => processor.use(mdxSnippet, {snippetsDir}));
 		}, 'Should not throw on missing file attribute');
 
 		st.match(
@@ -132,10 +146,8 @@ tap.test('mdxSnippet plugin', (t) => {
 	`;
 		const consoleErrorSpy = st.capture(console, 'error');
 
-		const processor = remark().use(remarkMdx).use(mdxSnippet, {snippetsDir});
-
 		st.doesNotThrow(() => {
-			processor.processSync(mdx);
+			mock(mdx, (processor) => processor.use(mdxSnippet, {snippetsDir}));
 		}, 'Should not throw on non-existent file');
 
 		st.match(
@@ -154,14 +166,15 @@ tap.test('mdxSnippet plugin', (t) => {
 
 	Some content
 
-	<Snippet file="code.mdx" />
+	<Snippet file="secondary.mdx" />
 	`;
-		const processor = remark().use(remarkMdx).use(mdxSnippet, {snippetsDir});
 
-		const result = processor.processSync(mdx).toString();
+		const result = mock(mdx, (processor) =>
+			processor.use(mdxSnippet, {snippetsDir})
+		);
 
 		st.match(result, /# Hello Snippet/, 'Should include first snippet');
-		st.match(result, /function hello\(\)/, 'Should include second snippet');
+		st.match(result, /# Secondary Snippet/, 'Should include second snippet');
 		st.end();
 	});
 
@@ -172,12 +185,12 @@ tap.test('mdxSnippet plugin', (t) => {
 
 	<Snippet file="nested.mdx" />
 	`;
-		const processor = remark().use(remarkMdx).use(mdxSnippet, {snippetsDir});
-
-		const result = processor.processSync(mdx).toString();
+		const result = mock(mdx, (processor) =>
+			processor.use(mdxSnippet, {snippetsDir, processor})
+		);
 
 		st.match(result, /## Nested Heading/, 'Should preserve nested structure');
-		st.match(result, /- List item 1/, 'Should include list items');
+		st.match(result, /\* List item 1/, 'Should include list items');
 		st.end();
 	});
 

@@ -95,7 +95,7 @@ remark()
 	.use(remarkMDXSnippets, {
 		// Use a different directory to resolve snippets
 		snippetsDir: path.resolve(process.cwd(), 'includes'),
-		// Cchange attribute or element name
+		// Change attribute or element name
 		fileAttribute: 'path',
 		elementName: 'CodeSnippet',
 	})
