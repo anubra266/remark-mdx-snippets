@@ -98,6 +98,8 @@ remark()
 		// Change attribute or element name
 		fileAttribute: 'path',
 		elementName: 'CodeSnippet',
+		// Use a custom processor
+		processor: unified().use(existingExtensions),
 	})
 	.process(`<CodeSnippet path="snippet/path" />`);
 ```
