@@ -62,13 +62,13 @@ Reusable and nestable snippets inspired by [Mintlify](https://mintlify.com/docs/
 import remarkMDXSnippets from 'remark-mdx-snippets';
 import {remark} from 'remark';
 
-remark().use(remarkMDXSnippets).process(`<Snippet file="snippet" />`);
+remark().use(remarkMDXSnippets).process(`<Snippet file="snippet.mdx" />`);
 ```
 
 ### Markdown
 
 1. Have a folder that stores snippets. By default the plugin checks the `_snippets` folder in your root directory.
-2. In your markdown (`.mdx`)
+2. In your markdown (`.mdx`):
 
 ```jsx
 ## Some title
@@ -101,7 +101,7 @@ remark()
 		// Use a custom processor
 		processor: unified().use(existingExtensions),
 	})
-	.process(`<CodeSnippet path="snippet/path" />`);
+	.process(`<CodeSnippet path="snippet/path.mdx" />`);
 ```
 
 ## Sponsors ✨
