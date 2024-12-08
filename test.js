@@ -45,6 +45,8 @@ const snippets = {
 	'secondary.mdx': '# Secondary Snippet\n\nThis is another simple snippet.',
 	'nested.mdx': '## Nested Heading\n\n<Snippet file="child.mdx" />',
 	'child.mdx': '- List item 1\n- List item 2',
+	'./directory/dir.mdx':
+		'# Directory Snippet\n\nThis is a snippet in a directory.',
 };
 
 // Utility to create a temporary snippets directory for testing
@@ -54,6 +56,7 @@ function setupTempSnippetsDir() {
 	// Ensure the directory exists
 	if (!fs.existsSync(tempDir)) {
 		fs.mkdirSync(tempDir);
+		fs.mkdirSync(path.join(tempDir, 'directory'), {recursive: true});
 	}
 
 	Object.entries(snippets).forEach(([filename, content]) => {
@@ -68,6 +71,7 @@ function setupTempSnippetsDir() {
 				fs.unlinkSync(path.join(tempDir, filename));
 			});
 			// Remove directory
+			fs.rmdirSync(path.join(tempDir, 'directory'));
 			fs.rmdirSync(tempDir);
 		},
 	};
@@ -191,6 +195,26 @@ tap.test('mdxSnippet plugin', (t) => {
 
 		st.match(result, /## Nested Heading/, 'Should preserve nested structure');
 		st.match(result, /\* List item 1/, 'Should include list items');
+		st.end();
+	});
+
+	t.test('Snippet in a directory', (st) => {
+		const mdx = `
+# Test Document
+
+<Snippet file="directory/dir.mdx" />
+`;
+
+		const result = mock(mdx, (processor) =>
+			processor.use(mdxSnippet, {snippetsDir})
+		);
+
+		st.match(result, /# Directory Snippet/, 'Should include snippet content');
+		st.match(
+			result,
+			/This is a snippet in a directory\./,
+			'Should include full snippet'
+		);
 		st.end();
 	});
 
