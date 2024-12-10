@@ -1,9 +1,11 @@
 import path from 'node:path';
-import {readSync} from 'to-vfile';
-import {remark} from 'remark';
+import { readSync } from 'to-vfile';
+import { remark } from 'remark';
 import remarkGfm from 'remark-gfm';
 import remarkStringify from 'remark-stringify';
 import remarkMdx from 'remark-mdx';
+// @ts-ignore
+import flatMap from 'unist-util-flatmap';
 
 /**
  * @typedef {import('mdast').RootContent} RootContent
@@ -24,102 +26,60 @@ import remarkMdx from 'remark-mdx';
  * @returns {(tree: RootContent, file: VFile) => RootContent}
  */
 export function mdxSnippet(options = {}) {
-	const {
-		snippetsDir = path.resolve(process.cwd(), '_snippets'),
-		fileAttribute = 'file',
-		elementName = 'Snippet',
-		processor: unified,
-	} = options;
+  const {
+    snippetsDir = path.resolve(process.cwd(), '_snippets'),
+    fileAttribute = 'file',
+    elementName = 'Snippet',
+    processor: unified,
+  } = options;
 
-	return (tree, file) => {
-		return flatMap(tree, (node) => {
-			// Only process specified Snippet MDX elements
-			if (node.type !== 'mdxJsxFlowElement' || node.name !== elementName) {
-				return [node];
-			}
+  return (tree, file) => {
+    // @ts-ignore
+    return flatMap(tree, (node) => {
+      if (node.type !== 'mdxJsxFlowElement' || node.name !== elementName) {
+        return [node];
+      }
 
-			// Find file attribute
-			const fileAttr = node.attributes.find(
-				/** @param {any} attr */
-				(attr) => attr.name === fileAttribute
-			);
+      // @ts-ignore
+      const fileAttr = node.attributes.find((attr) => attr.name === fileAttribute);
 
-			// Validate file attribute
-			if (!fileAttr || typeof fileAttr.value !== 'string') {
-				console.warn(
-					`${elementName} tag missing required "${fileAttribute}" attribute:`,
-					node
-				);
-				return [node];
-			}
+      if (!fileAttr || typeof fileAttr.value !== 'string') {
+        console.warn(
+          `${elementName} tag missing required "${fileAttribute}" attribute:`,
+          node
+        );
+        return [node];
+      }
 
-			const filePath = path.join(snippetsDir, fileAttr.value);
+      const filePath = path.join(snippetsDir, fileAttr.value);
 
-			let snippetContent = '';
-			try {
-				snippetContent = readSync(filePath, 'utf8').value.toString();
-			} catch (/** @type {unknown} */ error) {
-				console.error(
-					'Error reading snippet file:',
-					`\n\nSnippet at: ${file.path}:${node.position.start.line}:${node.position.start.column}`,
-					`\nFile path: ${filePath}`,
-					`\nError: ${error instanceof Error ? error.message : String(error)}`
-				);
-				return [node];
-			}
+      let snippetFile;
+      try {
+        snippetFile = readSync(filePath, 'utf8');
+      } catch (error) {
+        console.error(
+          'Error reading snippet file:',
+          `\n\nSnippet at: ${file.path}:${node.position.start.line}:${node.position.start.column}`,
+          `\nFile path: ${filePath}`,
+          `\nError: ${error instanceof Error ? error.message : String(error)}`
+        );
+        return [node];
+      }
 
-			const processor =
-				unified ??
-				remark()
-					.use(remarkGfm)
-					// @ts-ignore
-					.use(remarkStringify)
-					// @ts-ignore
-					.use(remarkMdx);
+      // Construct a processor for the snippet content that includes this plugin again
+      // so nested snippets are also processed.
+      const snippetProcessor = (unified ?? remark())
+        .use(remarkGfm)
+        .use(remarkStringify)
+        .use(remarkMdx)
+        .use(mdxSnippet, { snippetsDir, fileAttribute, elementName, processor: unified });
 
-			processor()
-				// @ts-ignore
-				.use(mdxSnippet, options);
+      // Parse and transform the snippet content
+      const ast = snippetProcessor().parse(snippetFile);
+      const result = snippetProcessor().runSync(ast, snippetFile);
 
-			const ast = processor.parse(snippetContent);
-			return processor.runSync(ast, snippetContent).children;
-		});
-	};
-}
-
-/**
- * Recursively transform nodes in an AST
- *
- * @param {RootContent} ast
- * @param {function(any, number, Parent|null): RootContent[]} fn
- * @returns {RootContent}
- */
-function flatMap(ast, fn) {
-	return transform(ast, 0, null)[0];
-
-	/**
-	 * Internal recursive transformation function
-	 *
-	 * @param {any} node
-	 * @param {number} index
-	 * @param {Parent|null} parent
-	 * @returns {RootContent[]}
-	 */
-	function transform(node, index, parent) {
-		// Process children if they exist
-		if (node.children) {
-			const out = [];
-			for (let i = 0, n = node.children.length; i < n; i++) {
-				const xs = transform(node.children[i], i, node);
-				if (xs) {
-					for (let j = 0, m = xs.length; j < m; j++) {
-						out.push(xs[j]);
-					}
-				}
-			}
-			node.children = out;
-		}
-
-		return fn(node, index, parent);
-	}
+      // Return the processed children, which now includes any nested snippet expansions
+      return result.children;
+    });
+  };
 }
