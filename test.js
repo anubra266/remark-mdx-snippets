@@ -190,7 +190,7 @@ tap.test('mdxSnippet plugin', (t) => {
 	<Snippet file="nested.mdx" />
 	`;
 		const result = mock(mdx, (processor) =>
-			processor.use(mdxSnippet, {snippetsDir, processor})
+			processor.use(mdxSnippet, {snippetsDir, processor: processor()})
 		);
 
 		st.match(result, /## Nested Heading/, 'Should preserve nested structure');
