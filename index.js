@@ -1,11 +1,10 @@
 import path from 'node:path';
-import { readSync } from 'to-vfile';
-import { remark } from 'remark';
+import {read} from 'to-vfile';
+import {remark} from 'remark';
 import remarkGfm from 'remark-gfm';
 import remarkStringify from 'remark-stringify';
 import remarkMdx from 'remark-mdx';
-// @ts-ignore
-import flatMap from 'unist-util-flatmap';
+import {visit} from 'unist-util-visit';
 
 /**
  * @typedef {import('mdast').RootContent} RootContent
@@ -23,63 +22,96 @@ import flatMap from 'unist-util-flatmap';
  * Plugin to process and include external snippet files in MDX
  *
  * @param {PluginOptions} [options={}]
- * @returns {(tree: RootContent, file: VFile) => RootContent}
+ * @returns {(tree: RootContent, file: VFile) => Promise<void>}
  */
 export function mdxSnippet(options = {}) {
-  const {
-    snippetsDir = path.resolve(process.cwd(), '_snippets'),
-    fileAttribute = 'file',
-    elementName = 'Snippet',
-    processor: unified,
-  } = options;
+	const {
+		snippetsDir = path.resolve(process.cwd(), '_snippets'),
+		fileAttribute = 'file',
+		elementName = 'Snippet',
+		processor: unified,
+	} = options;
 
-  return (tree, file) => {
-    // @ts-ignore
-    return flatMap(tree, (node) => {
-      if (node.type !== 'mdxJsxFlowElement' || node.name !== elementName) {
-        return [node];
-      }
+	return async (tree, file) => {
+		/** @type {Promise<void>[]} */
+		const queue = [];
 
-      // @ts-ignore
-      const fileAttr = node.attributes.find((attr) => attr.name === fileAttribute);
+		visit(
+			tree,
+			['mdxJsxFlowElement', 'mdxJsxTextElement'],
+			(node, index, parent) => {
+				if (
+					(node.type !== 'mdxJsxFlowElement' &&
+						node.type !== 'mdxJsxTextElement') ||
+					// @ts-ignore
+					node.name !== elementName
+				) {
+					return;
+				}
 
-      if (!fileAttr || typeof fileAttr.value !== 'string') {
-        console.warn(
-          `${elementName} tag missing required "${fileAttribute}" attribute:`,
-          node
-        );
-        return [node];
-      }
+				// @ts-ignore
+				const fileAttr = node.attributes.find(
+					(/** @type {any} */ attr) => attr.name === fileAttribute
+				);
 
-      const filePath = path.join(snippetsDir, fileAttr.value);
+				if (!fileAttr || typeof fileAttr.value !== 'string') {
+					console.warn(
+						`${elementName} tag missing required "${fileAttribute}" attribute:`,
+						node
+					);
+					return;
+				}
 
-      let snippetFile;
-      try {
-        snippetFile = readSync(filePath, 'utf8');
-      } catch (error) {
-        console.error(
-          'Error reading snippet file:',
-          `\n\nSnippet at: ${file.path}:${node.position.start.line}:${node.position.start.column}`,
-          `\nFile path: ${filePath}`,
-          `\nError: ${error instanceof Error ? error.message : String(error)}`
-        );
-        return [node];
-      }
+				const filePath = path.join(snippetsDir, fileAttr.value);
 
-      // Construct a processor for the snippet content that includes this plugin again
-      // so nested snippets are also processed.
-      const snippetProcessor = (unified ?? remark())
-        .use(remarkGfm)
-        .use(remarkStringify)
-        .use(remarkMdx)
-        .use(mdxSnippet, { snippetsDir, fileAttribute, elementName, processor: unified });
+				// Add dependency tracking for HMR support
+				// @ts-ignore
+				const compiler = /** @type {any} */ (file.data._compiler);
+				if (compiler && typeof compiler.addDependency === 'function') {
+					compiler.addDependency(filePath);
+				}
 
-      // Parse and transform the snippet content
-      const ast = snippetProcessor().parse(snippetFile);
-      const result = snippetProcessor().runSync(ast, snippetFile);
+				const promise = read(filePath, 'utf8')
+					.then((snippetFile) => {
+						// Construct a processor for the snippet content that includes this plugin again
+						// so nested snippets are also processed.
+						const snippetProcessor = (unified ?? remark())
+							.use(remarkGfm)
+							.use(remarkStringify)
+							.use(remarkMdx)
+							.use(mdxSnippet, {
+								snippetsDir,
+								fileAttribute,
+								elementName,
+								processor: unified,
+							});
 
-      // Return the processed children, which now includes any nested snippet expansions
-      return result.children;
-    });
-  };
+						// Parse and transform the snippet content
+						const ast = snippetProcessor().parse(snippetFile);
+						return snippetProcessor().run(ast, snippetFile);
+					})
+					.then((result) => {
+						// Replace the current node with the processed children
+						if (parent && typeof index === 'number') {
+							parent.children.splice(index, 1, ...result.children);
+						}
+					})
+					.catch((error) => {
+						console.error(
+							'Error reading snippet file:',
+							`\n\nSnippet at: ${file.path}:${node.position?.start?.line}:${node.position?.start?.column}`,
+							`\nFile path: ${filePath}`,
+							`\nError: ${
+								error instanceof Error ? error.message : String(error)
+							}`
+						);
+					});
+
+				queue.push(promise);
+				return 'skip';
+			}
+		);
+
+		await Promise.all(queue);
+	};
 }

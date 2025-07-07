@@ -28,13 +28,13 @@ tap.Test.prototype.capture = function (target, method) {
 	};
 };
 
-function mock(mdx, cb) {
+async function mock(mdx, cb) {
 	const processor = unified().use(remarkParse).use(remarkMdx);
 	cb(processor);
 	processor.use(remarkStringify);
 
 	const tree = processor.parse(mdx);
-	const transformedTree = processor.runSync(tree);
+	const transformedTree = await processor.run(tree);
 	const result = processor.stringify(transformedTree);
 	return result;
 }
@@ -83,14 +83,14 @@ tap.test('mdxSnippet plugin', (t) => {
 
 	t.teardown(cleanup);
 
-	t.test('Basic snippet inclusion', (st) => {
+	t.test('Basic snippet inclusion', async (st) => {
 		const mdx = `
 # Test Document
 
 <Snippet file="simple.mdx" />
 `;
 
-		const result = mock(mdx, (processor) =>
+		const result = await mock(mdx, (processor) =>
 			processor.use(mdxSnippet, {snippetsDir})
 		);
 
@@ -103,14 +103,14 @@ tap.test('mdxSnippet plugin', (t) => {
 		st.end();
 	});
 
-	t.test('Custom element and file attribute names', (st) => {
+	t.test('Custom element and file attribute names', async (st) => {
 		const mdx = `
 	# Test Document
 
 	<CodeSnippet source="simple.mdx" />
 	`;
 
-		const result = mock(mdx, (processor) =>
+		const result = await mock(mdx, (processor) =>
 			processor.use(mdxSnippet, {
 				snippetsDir,
 				elementName: 'CodeSnippet',
@@ -122,7 +122,7 @@ tap.test('mdxSnippet plugin', (t) => {
 		st.end();
 	});
 
-	t.test('Error handling - missing file attribute', (st) => {
+	t.test('Error handling - missing file attribute', async (st) => {
 		const mdx = `
 	# Test Document
 
@@ -130,9 +130,12 @@ tap.test('mdxSnippet plugin', (t) => {
 	`;
 		const consoleWarnSpy = st.capture(console, 'warn');
 
-		st.doesNotThrow(() => {
-			mock(mdx, (processor) => processor.use(mdxSnippet, {snippetsDir}));
-		}, 'Should not throw on missing file attribute');
+		try {
+			await mock(mdx, (processor) => processor.use(mdxSnippet, {snippetsDir}));
+			st.pass('Should not throw on missing file attribute');
+		} catch (error) {
+			st.fail('Should not throw on missing file attribute');
+		}
 
 		st.match(
 			consoleWarnSpy.calls[0][0],
@@ -142,7 +145,7 @@ tap.test('mdxSnippet plugin', (t) => {
 		st.end();
 	});
 
-	t.test('Error handling - non-existent file', (st) => {
+	t.test('Error handling - non-existent file', async (st) => {
 		const mdx = `
 	# Test Document
 
@@ -150,9 +153,12 @@ tap.test('mdxSnippet plugin', (t) => {
 	`;
 		const consoleErrorSpy = st.capture(console, 'error');
 
-		st.doesNotThrow(() => {
-			mock(mdx, (processor) => processor.use(mdxSnippet, {snippetsDir}));
-		}, 'Should not throw on non-existent file');
+		try {
+			await mock(mdx, (processor) => processor.use(mdxSnippet, {snippetsDir}));
+			st.pass('Should not throw on non-existent file');
+		} catch (error) {
+			st.fail('Should not throw on non-existent file');
+		}
 
 		st.match(
 			consoleErrorSpy.calls[0][0],
@@ -162,7 +168,7 @@ tap.test('mdxSnippet plugin', (t) => {
 		st.end();
 	});
 
-	t.test('Multiple snippet inclusions', (st) => {
+	t.test('Multiple snippet inclusions', async (st) => {
 		const mdx = `
 	# Test Document
 
@@ -173,7 +179,7 @@ tap.test('mdxSnippet plugin', (t) => {
 	<Snippet file="secondary.mdx" />
 	`;
 
-		const result = mock(mdx, (processor) =>
+		const result = await mock(mdx, (processor) =>
 			processor.use(mdxSnippet, {snippetsDir})
 		);
 
@@ -183,13 +189,13 @@ tap.test('mdxSnippet plugin', (t) => {
 	});
 
 	// Nested processing test
-	t.test('Nested snippet processing', (st) => {
+	t.test('Nested snippet processing', async (st) => {
 		const mdx = `
 	# Test Document
 
 	<Snippet file="nested.mdx" />
 	`;
-		const result = mock(mdx, (processor) =>
+		const result = await mock(mdx, (processor) =>
 			processor.use(mdxSnippet, {snippetsDir, processor: processor()})
 		);
 
@@ -198,14 +204,14 @@ tap.test('mdxSnippet plugin', (t) => {
 		st.end();
 	});
 
-	t.test('Snippet in a directory', (st) => {
+	t.test('Snippet in a directory', async (st) => {
 		const mdx = `
 # Test Document
 
 <Snippet file="directory/dir.mdx" />
 `;
 
-		const result = mock(mdx, (processor) =>
+		const result = await mock(mdx, (processor) =>
 			processor.use(mdxSnippet, {snippetsDir})
 		);
 
