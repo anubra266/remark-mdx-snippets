@@ -224,5 +224,57 @@ tap.test('mdxSnippet plugin', (t) => {
 		st.end();
 	});
 
+	t.test('Complex multiple snippets - all should be processed', async (st) => {
+		const mdx = `
+# Test Document
+
+Some intro text
+
+<Snippet file="simple.mdx" />
+
+Middle content here
+
+<Snippet file="secondary.mdx" />
+
+More content
+
+<Snippet file="directory/dir.mdx" />
+
+Final content
+`;
+
+		const result = await mock(mdx, (processor) =>
+			processor.use(mdxSnippet, {snippetsDir})
+		);
+
+		// Check that all snippets were processed
+		st.match(result, /# Hello Snippet/, 'Should include first snippet');
+		st.match(
+			result,
+			/This is a simple snippet\./,
+			'Should include first snippet content'
+		);
+		st.match(result, /# Secondary Snippet/, 'Should include second snippet');
+		st.match(
+			result,
+			/This is another simple snippet\./,
+			'Should include second snippet content'
+		);
+		st.match(result, /# Directory Snippet/, 'Should include third snippet');
+		st.match(
+			result,
+			/This is a snippet in a directory\./,
+			'Should include third snippet content'
+		);
+
+		// Check that original content is preserved
+		st.match(result, /Some intro text/, 'Should preserve intro text');
+		st.match(result, /Middle content here/, 'Should preserve middle content');
+		st.match(result, /More content/, 'Should preserve more content');
+		st.match(result, /Final content/, 'Should preserve final content');
+
+		st.end();
+	});
+
 	t.end();
 });

@@ -36,81 +36,84 @@ export function mdxSnippet(options = {}) {
 		/** @type {Promise<void>[]} */
 		const queue = [];
 
-		visit(
-			tree,
-			['mdxJsxFlowElement', 'mdxJsxTextElement'],
-			(node, index, parent) => {
-				if (
-					(node.type !== 'mdxJsxFlowElement' &&
-						node.type !== 'mdxJsxTextElement') ||
-					// @ts-ignore
-					node.name !== elementName
-				) {
-					return;
-				}
-
+		visit(tree, ['mdxJsxFlowElement', 'mdxJsxTextElement'], (node) => {
+			if (
+				(node.type !== 'mdxJsxFlowElement' &&
+					node.type !== 'mdxJsxTextElement') ||
 				// @ts-ignore
-				const fileAttr = node.attributes.find(
-					(/** @type {any} */ attr) => attr.name === fileAttribute
-				);
-
-				if (!fileAttr || typeof fileAttr.value !== 'string') {
-					console.warn(
-						`${elementName} tag missing required "${fileAttribute}" attribute:`,
-						node
-					);
-					return;
-				}
-
-				const filePath = path.join(snippetsDir, fileAttr.value);
-
-				// Add dependency tracking for HMR support
-				// @ts-ignore
-				const compiler = /** @type {any} */ (file.data._compiler);
-				if (compiler && typeof compiler.addDependency === 'function') {
-					compiler.addDependency(filePath);
-				}
-
-				const promise = read(filePath, 'utf8')
-					.then((snippetFile) => {
-						// Construct a processor for the snippet content that includes this plugin again
-						// so nested snippets are also processed.
-						const snippetProcessor = (unified ?? remark())
-							.use(remarkGfm)
-							.use(remarkStringify)
-							.use(remarkMdx)
-							.use(mdxSnippet, {
-								snippetsDir,
-								fileAttribute,
-								elementName,
-								processor: unified,
-							});
-
-						// Parse and transform the snippet content
-						const ast = snippetProcessor().parse(snippetFile);
-						return snippetProcessor().run(ast, snippetFile);
-					})
-					.then((result) => {
-						// Replace the current node with the processed children
-						if (parent && typeof index === 'number') {
-							parent.children.splice(index, 1, ...result.children);
-						}
-					})
-					.catch((error) => {
-						console.error(
-							'Error reading snippet file:',
-							`\n\nSnippet at: ${file.path}:${node.position?.start?.line}:${node.position?.start?.column}`,
-							`\nFile path: ${filePath}`,
-							`\nError: ${
-								error instanceof Error ? error.message : String(error)
-							}`
-						);
-					});
-
-				queue.push(promise);
-				return 'skip';
+				node.name !== elementName
+			) {
+				return;
 			}
-		);
+
+			// @ts-ignore
+			const fileAttr = node.attributes.find(
+				(/** @type {any} */ attr) => attr.name === fileAttribute
+			);
+
+			if (!fileAttr || typeof fileAttr.value !== 'string') {
+				console.warn(
+					`${elementName} tag missing required "${fileAttribute}" attribute:`,
+					node
+				);
+				return;
+			}
+
+			const filePath = path.join(snippetsDir, fileAttr.value);
+
+			// Add dependency tracking for HMR support
+			// @ts-ignore
+			const compiler = /** @type {any} */ (file.data._compiler);
+			if (compiler && typeof compiler.addDependency === 'function') {
+				compiler.addDependency(filePath);
+			}
+
+			const promise = read(filePath, 'utf8')
+				.then((snippetFile) => {
+					// Construct a processor for the snippet content that includes this plugin again
+					// so nested snippets are also processed.
+					const snippetProcessor = (unified ?? remark())
+						.use(remarkGfm)
+						.use(remarkStringify)
+						.use(remarkMdx)
+						.use(mdxSnippet, {
+							snippetsDir,
+							fileAttribute,
+							elementName,
+							processor: unified,
+						});
+
+					// Parse and transform the snippet content
+					const ast = snippetProcessor().parse(snippetFile);
+					return snippetProcessor().run(ast, snippetFile);
+				})
+				.then((result) => {
+					// Replace the node with the parsed content (first child if single, or fragment if multiple)
+					// This approach is safer than splicing during visit
+					if (result.children.length === 1) {
+						// Single child - replace the node with the child content
+						Object.assign(node, result.children[0]);
+					} else {
+						// Multiple children - create a fragment-like structure
+						Object.assign(node, {
+							type: 'mdxJsxFlowElement',
+							name: null,
+							attributes: [],
+							children: result.children,
+						});
+					}
+				})
+				.catch((error) => {
+					console.error(
+						'Error reading snippet file:',
+						`\n\nSnippet at: ${file.path}:${node.position?.start?.line}:${node.position?.start?.column}`,
+						`\nFile path: ${filePath}`,
+						`\nError: ${error instanceof Error ? error.message : String(error)}`
+					);
+				});
+
+			queue.push(promise);
+		});
 
 		await Promise.all(queue);
 	};
