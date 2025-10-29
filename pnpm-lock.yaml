@@ -45,6 +45,9 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+      vfile:
+        specifier: ^6.0.3
+        version: 6.0.3
 
 packages:
 
