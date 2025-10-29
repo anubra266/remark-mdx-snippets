@@ -19,6 +19,56 @@ import {visit} from 'unist-util-visit';
  */
 
 /**
+ * Fetch content from a remote URL
+ * @param {string} url - The URL to fetch content from
+ * @returns {Promise<{value: string, path: string}>}
+ */
+async function fetchRemoteContent(url) {
+	try {
+		const response = await fetch(url);
+		if (!response.ok) {
+			throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+		}
+		const content = await response.text();
+		return {value: content, path: url};
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		throw new Error(
+			`Failed to fetch remote content from ${url}: ${errorMessage}`
+		);
+	}
+}
+
+/**
+ * Get file extension from URL or file path
+ * @param {string} filePath - The file path or URL
+ * @returns {string} - The file extension (without dot)
+ */
+function getFileExtension(filePath) {
+	const lastDot = filePath.lastIndexOf('.');
+	const lastSlash = Math.max(
+		filePath.lastIndexOf('/'),
+		filePath.lastIndexOf('\\')
+	);
+
+	// If there's no dot, or the dot is before the last slash (part of directory name)
+	if (lastDot === -1 || lastDot < lastSlash) {
+		return '';
+	}
+
+	return filePath.substring(lastDot + 1).toLowerCase();
+}
+
+/**
+ * Check if file extension should be processed as markdown content
+ * @param {string} extension - File extension
+ * @returns {boolean}
+ */
+function isMarkdownExtension(extension) {
+	return extension === 'md' || extension === 'mdx';
+}
+
+/**
  * Plugin to process and include external snippet files in MDX
  *
  * @param {PluginOptions} [options={}]
@@ -59,33 +109,107 @@ export function mdxSnippet(options = {}) {
 				return;
 			}
 
-			const filePath = path.join(snippetsDir, fileAttr.value);
+			const isRemoteFile =
+				fileAttr.value.startsWith('https://') ||
+				fileAttr.value.startsWith('http://');
 
-			// Add dependency tracking for HMR support
+			// Extract lang and meta attributes for code blocks
 			// @ts-ignore
-			const compiler = /** @type {any} */ (file.data._compiler);
-			if (compiler && typeof compiler.addDependency === 'function') {
-				compiler.addDependency(filePath);
+			const langAttr = node.attributes.find(
+				(/** @type {any} */ attr) => attr.name === 'lang'
+			);
+			// @ts-ignore
+			const metaAttr = node.attributes.find(
+				(/** @type {any} */ attr) => attr.name === 'meta'
+			);
+
+			const lang =
+				langAttr && typeof langAttr.value === 'string' ? langAttr.value : null;
+			const meta =
+				metaAttr && typeof metaAttr.value === 'string' ? metaAttr.value : null;
+
+			let contentPromise;
+			let filePath;
+
+			if (isRemoteFile) {
+				// Handle remote files
+				const url = fileAttr.value; // Use URL directly
+				filePath = url;
+				contentPromise = fetchRemoteContent(url);
+			} else {
+				// Handle local files
+				filePath = path.join(snippetsDir, fileAttr.value);
+
+				// Add dependency tracking for HMR support
+				// @ts-ignore
+				const compiler = /** @type {any} */ (file.data._compiler);
+				if (compiler && typeof compiler.addDependency === 'function') {
+					compiler.addDependency(filePath);
+				}
+
+				contentPromise = read(filePath, 'utf8');
 			}
 
-			const promise = read(filePath, 'utf8')
+			const promise = contentPromise
 				.then((snippetFile) => {
-					// Construct a processor for the snippet content that includes this plugin again
-					// so nested snippets are also processed.
-					const snippetProcessor = (unified ?? remark())
-						.use(remarkGfm)
-						.use(remarkStringify)
-						.use(remarkMdx)
-						.use(mdxSnippet, {
-							snippetsDir,
-							fileAttribute,
-							elementName,
-							processor: unified,
-						});
+					// Determine the file extension to decide processing method
+					// We already verified fileAttr.value is a string above
+					const fileValue = /** @type {string} */ (fileAttr.value);
+					const sourceFile = fileValue; // Use as-is for both remote and local files
+					const extension = getFileExtension(sourceFile);
 
-					// Parse and transform the snippet content
-					const ast = snippetProcessor().parse(snippetFile);
-					return snippetProcessor().run(ast, snippetFile);
+					if (isMarkdownExtension(extension)) {
+						// Process as markdown content
+						if (isRemoteFile) {
+							// For remote markdown/MDX files, use a simpler processor that doesn't cause MDX conflicts
+							const content =
+								typeof snippetFile === 'string'
+									? snippetFile
+									: snippetFile.value || snippetFile;
+							const snippetProcessor = (unified ?? remark())
+								.use(remarkGfm)
+								.use(remarkStringify)
+								.use(mdxSnippet, {
+									snippetsDir,
+									fileAttribute,
+									elementName,
+									processor: unified,
+								});
+
+							const ast = snippetProcessor().parse(content);
+							const fileObj = {value: content, path: sourceFile, data: {}};
+							return snippetProcessor().run(ast, fileObj);
+						} else {
+							// For local files, use the full processor including MDX
+							const snippetProcessor = (unified ?? remark())
+								.use(remarkGfm)
+								.use(remarkStringify)
+								.use(remarkMdx)
+								.use(mdxSnippet, {
+									snippetsDir,
+									fileAttribute,
+									elementName,
+									processor: unified,
+								});
+
+							const ast = snippetProcessor().parse(snippetFile);
+							return snippetProcessor().run(ast, snippetFile);
+						}
+					} else {
+						// Create a code block for non-markdown files
+						const codeBlockNode = {
+							type: 'code',
+							lang: lang || extension || null,
+							meta: meta || null,
+							value: snippetFile.value || snippetFile,
+						};
+
+						// Return a result with the code block as a child
+						return {
+							type: 'root',
+							children: [codeBlockNode],
+						};
+					}
 				})
 				.then((result) => {
 					// Replace the node with the parsed content (first child if single, or fragment if multiple)
@@ -104,10 +228,16 @@ export function mdxSnippet(options = {}) {
 					}
 				})
 				.catch((error) => {
+					// We already verified fileAttr.value is a string above
+					const fileValue = /** @type {string} */ (fileAttr.value);
+					const sourcePath = isRemoteFile
+						? fileValue // Use URL directly for display
+						: path.join(snippetsDir, fileValue);
+
 					console.error(
 						'Error reading snippet file:',
 						`\n\nSnippet at: ${file.path}:${node.position?.start?.line}:${node.position?.start?.column}`,
-						`\nFile path: ${filePath}`,
+						`\n${isRemoteFile ? 'Remote URL' : 'File path'}: ${sourcePath}`,
 						`\nError: ${error instanceof Error ? error.message : String(error)}`
 					);
 				});

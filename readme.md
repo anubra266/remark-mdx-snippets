@@ -67,6 +67,8 @@ remark().use(remarkMDXSnippets).process(`<Snippet file="snippet.mdx" />`);
 
 ### Markdown
 
+#### Local Files
+
 1. Have a folder that stores snippets. By default the plugin checks the `_snippets` folder in your root directory.
 2. In your markdown (`.mdx`):
 
@@ -78,12 +80,49 @@ Any normal markdown content
 <Snippet file="a-snippet-file.mdx" />
 ```
 
-The plugin then checks your `_snippets` for a `<file>.mdx` In this example it finds `a-snippet-file.mdx`. THe content of the file is then resolved like it was written in the current markdown.
+The plugin then checks your `_snippets` for a `<file>.mdx` In this example it finds `a-snippet-file.mdx`. The content of the file is then resolved like it was written in the current markdown.
+
+#### Remote Files
+
+You can also include snippets from remote URLs directly:
+
+```jsx
+## Some title
+
+Any normal markdown content
+
+<Snippet file="https://raw.githubusercontent.com/chakra-ui/zag/refs/heads/main/README.md" />
+```
+
+The plugin will fetch the content from the remote URL and process it based on the file extension:
+
+- **Markdown files** (`.md`, `.mdx`) are processed as content and integrated into your document
+- **Other files** (`.js`, `.py`, `.json`, etc.) become syntax-highlighted code blocks
+
+#### Code Block Attributes
+
+For non-markdown files that become code blocks, you can customize the syntax highlighting and metadata:
+
+```jsx
+## JavaScript Example
+
+<Snippet file="https://example.com/script.js" lang="typescript" meta='title="Custom Script"' />
+
+## Configuration File
+
+<Snippet file="https://example.com/config.json" meta='title="App Config" showLineNumbers' />
+```
+
+- **`lang` attribute**: Override the language for syntax highlighting (defaults to file extension)
+- **`meta` attribute**: Add metadata to the code block (title, line numbers, etc.)
 
 **NB:**
 
 1.  You can use snippets within snippets. (nesting)
 2.  You can have folders within the snippets directory, you don't have to put all snippets flat in that folder.
+3.  Remote files must use direct `https://` or `http://` URLs.
+4.  File behavior depends on extension: `.md`/`.mdx` files are processed as content, other files become code blocks.
+5.  Use `lang` and `meta` attributes to customize code block syntax highlighting and metadata.
 
 ## Configure
 
@@ -91,17 +130,19 @@ The plugin then checks your `_snippets` for a `<file>.mdx` In this example it fi
 import remarkMDXSnippets from 'remark-mdx-snippets';
 import {remark} from 'remark';
 
-remark()
-	.use(remarkMDXSnippets, {
-		// Use a different directory to resolve snippets
-		snippetsDir: path.resolve(process.cwd(), 'includes'),
-		// Change attribute or element name
-		fileAttribute: 'path',
-		elementName: 'CodeSnippet',
-		// Use a custom processor
-		processor: unified().use(existingExtensions),
-	})
-	.process(`<CodeSnippet path="snippet/path.mdx" />`);
+remark().use(remarkMDXSnippets, {
+	// Use a different directory to resolve snippets
+	snippetsDir: path.resolve(process.cwd(), 'includes'),
+	// Change attribute or element name
+	fileAttribute: 'path',
+	elementName: 'CodeSnippet',
+	// Use a custom processor
+	processor: unified().use(existingExtensions),
+}).process(`
+		<CodeSnippet path="snippet/path.mdx" />
+		<CodeSnippet path="https://raw.githubusercontent.com/example/repo/main/snippet.md" />
+		<CodeSnippet path="https://example.com/script.js" lang="typescript" meta='title="Example"' />
+	`);
 ```
 
 ## Sponsors ✨
