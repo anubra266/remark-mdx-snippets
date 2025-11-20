@@ -314,28 +314,28 @@ tap.test('mdxSnippet plugin - Remote Files', (t) => {
 		const mdx = `
 # Test Document
 
-<Snippet file="https://raw.githubusercontent.com/anubra266/agents/refs/heads/main/README.md" />
+<Snippet file="https://raw.githubusercontent.com/anubra266/remark-mdx-snippets/refs/heads/main/readme.md" />
 `;
 
 		const result = await mock(mdx, (processor) =>
 			processor.use(mdxSnippet, {snippetsDir})
 		);
 
-		// Test for specific content from the GitHub README
+		// Test for specific content from the remark-mdx-snippets README
 		st.match(
 			result,
-			/Build AI Agents with a.*No-Code Visual Builder.*or.*TypeScript SDK/,
-			'Should include the main description from GitHub README'
+			/remark-mdx-snippets/,
+			'Should include project name from README'
 		);
 		st.match(
 			result,
-			/full 2-way sync/,
-			'Should include sync description from GitHub README'
+			/Snippets for your markdown/,
+			'Should include project description from README'
 		);
 		st.match(
 			result,
-			/A no-code, drag-and-drop canvas/,
-			'Should include visual builder description'
+			/Reusable and nestable snippets inspired by.*Mintlify/,
+			'Should include the inspiration description from README'
 		);
 		// Should not contain the original Snippet tag if processed successfully
 		st.notMatch(
