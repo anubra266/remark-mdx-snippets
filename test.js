@@ -41,12 +41,16 @@ async function mock(mdx, cb) {
 
 // Create some test snippet files
 const snippets = {
-	'simple.mdx': '# Hello Snippet\n\nThis is a simple snippet.',
-	'secondary.mdx': '# Secondary Snippet\n\nThis is another simple snippet.',
-	'nested.mdx': '## Nested Heading\n\n<Snippet file="child.mdx" />',
-	'child.mdx': '- List item 1\n- List item 2',
+	'simple.mdx':
+		'# Hello Snippet\n\nThis is a simple snippet with <a href="https://example.com">a link</a> and an image:\n\n<img src="test.jpg" alt="Test image" width="100" />',
+	'secondary.mdx':
+		'# Secondary Snippet\n\nThis is another simple snippet with HTML <strong>bold text</strong>.',
+	'nested.mdx':
+		'## Nested Heading\n\n<div class="container">\n<Snippet file="child.mdx" />\n</div>',
+	'child.mdx':
+		'- List item 1\n- List item 2\n\n<img src="child.png" alt="Child image" />',
 	'./directory/dir.mdx':
-		'# Directory Snippet\n\nThis is a snippet in a directory.',
+		'# Directory Snippet\n\nThis is a snippet in a directory with <a href="/docs">internal link</a>.',
 };
 
 // Utility to create a temporary snippets directory for testing
@@ -122,8 +126,8 @@ tap.test('mdxSnippet plugin', (t) => {
 		st.match(result, /# Hello Snippet/, 'Should include snippet content');
 		st.match(
 			result,
-			/This is a simple snippet\./,
-			'Should include full snippet'
+			/This is a simple snippet with.*a link.*and an image/,
+			'Should include full snippet with HTML content'
 		);
 		st.end();
 	});
@@ -243,8 +247,8 @@ tap.test('mdxSnippet plugin', (t) => {
 		st.match(result, /# Directory Snippet/, 'Should include snippet content');
 		st.match(
 			result,
-			/This is a snippet in a directory\./,
-			'Should include full snippet'
+			/This is a snippet in a directory with.*internal link/,
+			'Should include full snippet with HTML content'
 		);
 		st.end();
 	});
@@ -276,20 +280,20 @@ Final content
 		st.match(result, /# Hello Snippet/, 'Should include first snippet');
 		st.match(
 			result,
-			/This is a simple snippet\./,
-			'Should include first snippet content'
+			/This is a simple snippet with.*a link.*and an image/,
+			'Should include first snippet content with HTML'
 		);
 		st.match(result, /# Secondary Snippet/, 'Should include second snippet');
 		st.match(
 			result,
-			/This is another simple snippet\./,
-			'Should include second snippet content'
+			/This is another simple snippet with HTML.*bold text/,
+			'Should include second snippet content with HTML'
 		);
 		st.match(result, /# Directory Snippet/, 'Should include third snippet');
 		st.match(
 			result,
-			/This is a snippet in a directory\./,
-			'Should include third snippet content'
+			/This is a snippet in a directory with.*internal link/,
+			'Should include third snippet content with HTML'
 		);
 
 		// Check that original content is preserved
