@@ -167,7 +167,6 @@ export function mdxSnippet(options = {}) {
 									? snippetFile
 									: snippetFile.value || snippetFile;
 							const snippetProcessor = (unified ?? remark())
-								.use(remarkGfm)
 								.use(remarkStringify)
 								.use(mdxSnippet, {
 									snippetsDir,

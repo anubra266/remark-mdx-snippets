@@ -311,37 +311,37 @@ tap.test('mdxSnippet plugin - Remote Files', (t) => {
 	t.teardown(cleanup);
 
 	t.test('Basic remote file inclusion', async (st) => {
-		const originalFetch = global.fetch;
-		const mockResponses = {
-			'https://example.com/remote-snippet.md': {
-				content: '# Remote Snippet\n\nThis content comes from a remote URL.',
-			},
-		};
-
-		global.fetch = createFetchMock(mockResponses);
-		st.teardown(() => {
-			global.fetch = originalFetch;
-		});
-
 		const mdx = `
 # Test Document
 
-<Snippet file="https://example.com/remote-snippet.md" />
+<Snippet file="https://raw.githubusercontent.com/anubra266/agents/refs/heads/main/README.md" />
 `;
 
 		const result = await mock(mdx, (processor) =>
 			processor.use(mdxSnippet, {snippetsDir})
 		);
 
+		// Test for specific content from the GitHub README
 		st.match(
 			result,
-			/# Remote Snippet/,
-			'Should include remote snippet content'
+			/Build AI Agents with a.*No-Code Visual Builder.*or.*TypeScript SDK/,
+			'Should include the main description from GitHub README'
 		);
 		st.match(
 			result,
-			/This content comes from a remote URL\./,
-			'Should include full remote snippet'
+			/full 2-way sync/,
+			'Should include sync description from GitHub README'
+		);
+		st.match(
+			result,
+			/A no-code, drag-and-drop canvas/,
+			'Should include visual builder description'
+		);
+		// Should not contain the original Snippet tag if processed successfully
+		st.notMatch(
+			result,
+			/<Snippet file=/,
+			'Should replace Snippet tag with actual content'
 		);
 		st.end();
 	});
