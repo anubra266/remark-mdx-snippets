@@ -179,9 +179,11 @@ export function mdxSnippet(options = {}) {
 							const fileObj = {value: content, path: sourceFile, data: {}};
 							return snippetProcessor().run(ast, fileObj);
 						} else {
-							// For local files, use basic processing - let host project handle MDX/GFM
+							// For local files, use the full processor including MDX
 							const snippetProcessor = (unified ?? remark())
+								.use(remarkGfm)
 								.use(remarkStringify)
+								.use(remarkMdx)
 								.use(mdxSnippet, {
 									snippetsDir,
 									fileAttribute,
