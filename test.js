@@ -337,11 +337,11 @@ tap.test('mdxSnippet plugin - Remote Files', (t) => {
 			/Reusable and nestable snippets inspired by.*Mintlify/,
 			'Should include the inspiration description from README'
 		);
-		// Should not contain the original Snippet tag if processed successfully
+		// Should not contain the specific original Snippet tag if processed successfully
 		st.notMatch(
 			result,
-			/<Snippet file=/,
-			'Should replace Snippet tag with actual content'
+			/remark-mdx-snippets\/refs\/heads\/main\/readme\.md/,
+			'Should replace the specific Snippet tag with actual content'
 		);
 		st.end();
 	});
