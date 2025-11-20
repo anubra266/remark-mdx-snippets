@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import remarkStringify from 'remark-stringify';
 import remarkMdx from 'remark-mdx';
 import {visit} from 'unist-util-visit';
+import {VFile} from 'vfile';
 
 /**
  * @typedef {import('mdast').RootContent} RootContent
@@ -166,7 +167,9 @@ export function mdxSnippet(options = {}) {
 								typeof snippetFile === 'string'
 									? snippetFile
 									: snippetFile.value || snippetFile;
-							const snippetProcessor = (unified ?? remark())
+							// Try GFM first for full HTML/table support, fallback to basic if it fails
+							const gfmProcessor = (unified ?? remark())
+								.use(remarkGfm)
 								.use(remarkStringify)
 								.use(mdxSnippet, {
 									snippetsDir,
@@ -175,9 +178,36 @@ export function mdxSnippet(options = {}) {
 									processor: unified,
 								});
 
-							const ast = snippetProcessor().parse(content);
-							const fileObj = {value: content, path: sourceFile, data: {}};
-							return snippetProcessor().run(ast, fileObj);
+							const basicProcessor = (unified ?? remark())
+								.use(remarkStringify)
+								.use(mdxSnippet, {
+									snippetsDir,
+									fileAttribute,
+									elementName,
+									processor: unified,
+								});
+
+							try {
+								// First attempt: try with GFM for full feature support
+								// @ts-ignore
+								const vfile = new VFile({value: content, path: sourceFile});
+								const ast = gfmProcessor().parse(vfile);
+								return gfmProcessor().run(ast, vfile);
+							} catch (gfmError) {
+								// Fallback: use basic processing if GFM fails
+								const errorMessage =
+									gfmError instanceof Error
+										? gfmError.message
+										: String(gfmError);
+								console.warn(
+									'GFM processing failed, falling back to basic markdown:',
+									errorMessage
+								);
+
+								const ast = basicProcessor().parse(content);
+								const fileObj = {value: content, path: sourceFile, data: {}};
+								return basicProcessor().run(ast, fileObj);
+							}
 						} else {
 							// For local files, use the full processor including MDX
 							const snippetProcessor = (unified ?? remark())
