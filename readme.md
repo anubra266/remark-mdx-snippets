@@ -17,27 +17,25 @@
     <a href="https://www.npmjs.com/package/remark-mdx-snippets?style=for-the-badge">
       <img src="https://img.shields.io/npm/dw/remark-mdx-snippets.svg?style=for-the-badge" alt="npm  downloads" />
     </a>
-<a>
-    <img alt="NPM" src="https://img.shields.io/npm/l/remark-mdx-snippets?style=for-the-badge" />
-</a>
-
-<a><img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/anubra266/remark-mdx-snippets?logo=github&style=for-the-badge" />
-
-</a>
+    <a>
+      <img alt="NPM" src="https://img.shields.io/npm/l/remark-mdx-snippets?style=for-the-badge" />
+    </a>
+    <a>
+      <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/anubra266/remark-mdx-snippets?logo=github&style=for-the-badge" />
+    </a>
     <br />
-   Snippets for your markdown
-    
-  </sup>
-  <br />
-  <br />
-  <br />
-  <br />
-  <pre>npm i <a href="https://www.npmjs.com/package/remark-mdx-snippets">remark-mdx-snippets</a></pre>
-  <br />
-  <br />
-  <br />
-  <br />
-  <br />
+    Snippets for your markdown
+    </sup>
+    <br />
+    <br />
+    <br />
+    <br />
+    <pre>npm i <a href="https://www.npmjs.com/package/remark-mdx-snippets">remark-mdx-snippets</a></pre>
+    <br />
+    <br />
+    <br />
+    <br />
+    <br />
 </div>
 
 ## Install
