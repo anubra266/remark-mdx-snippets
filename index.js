@@ -162,14 +162,15 @@ export function mdxSnippet(options = {}) {
 					if (isMarkdownExtension(extension)) {
 						// Process as markdown content
 						if (isRemoteFile) {
-							// For remote markdown/MDX files, use a simpler processor that doesn't cause MDX conflicts
+							// For remote markdown/MDX files, try GFM first, fallback to basic if it fails
 							const content =
 								typeof snippetFile === 'string'
 									? snippetFile
 									: snippetFile.value || snippetFile;
-							const snippetProcessor = (unified ?? remark())
+
+							// Try with GFM first
+							const gfmProcessor = (unified ?? remark())()
 								.use(remarkGfm)
-								.use(remarkStringify)
 								.use(mdxSnippet, {
 									snippetsDir,
 									fileAttribute,
@@ -177,18 +178,37 @@ export function mdxSnippet(options = {}) {
 									processor: unified,
 								});
 
-							// For remote files, use basic remark processing with snippet support
-							const simpleProcessor = (unified ?? remark())().use(mdxSnippet, {
-								snippetsDir,
-								fileAttribute,
-								elementName,
-								processor: unified,
-							});
-
-							const ast = simpleProcessor.parse(content);
 							// @ts-ignore
 							const vfile = new VFileClass({value: content, path: sourceFile});
-							return simpleProcessor.run(ast, vfile);
+
+							try {
+								const ast = gfmProcessor.parse(vfile);
+								return gfmProcessor.run(ast, vfile);
+							} catch (gfmError) {
+								// If GFM fails, fallback to basic remark processing
+								const errorMessage =
+									gfmError instanceof Error
+										? gfmError.message
+										: String(gfmError);
+								console.warn(
+									'GFM processing failed, falling back to basic markdown:',
+									errorMessage
+								);
+								const basicProcessor = (unified ?? remark())().use(mdxSnippet, {
+									snippetsDir,
+									fileAttribute,
+									elementName,
+									processor: unified,
+								});
+
+								const basicAst = basicProcessor.parse(content);
+								const basicVfile = new VFileClass({
+									// @ts-ignore - VFile value type compatibility
+									value: content,
+									path: sourceFile,
+								});
+								return basicProcessor.run(basicAst, basicVfile);
+							}
 						} else {
 							// For local files, use the full processor including MDX
 							const snippetProcessor = (unified ?? remark())
