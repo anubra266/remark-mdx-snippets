@@ -5,7 +5,6 @@ import remarkGfm from 'remark-gfm';
 import remarkStringify from 'remark-stringify';
 import remarkMdx from 'remark-mdx';
 import {visit} from 'unist-util-visit';
-import {VFile} from 'vfile';
 
 /**
  * @typedef {import('mdast').RootContent} RootContent
