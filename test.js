@@ -6,6 +6,7 @@ import remarkStringify from 'remark-stringify';
 import {mdxSnippet} from './index.js';
 import {unified} from 'unified';
 import remarkParse from 'remark-parse';
+import {VFile} from 'vfile';
 
 tap.Test.prototype.capture = function (target, method) {
 	const original = target[method];
@@ -33,10 +34,9 @@ async function mock(mdx, cb) {
 	cb(processor);
 	processor.use(remarkStringify);
 
-	const tree = processor.parse(mdx);
-	const transformedTree = await processor.run(tree);
-	const result = processor.stringify(transformedTree);
-	return result;
+	const vfile = new VFile({value: mdx, path: 'test.mdx'});
+	const result = await processor.process(vfile);
+	return result.toString();
 }
 
 // Create some test snippet files
@@ -314,7 +314,97 @@ tap.test('mdxSnippet plugin - Remote Files', (t) => {
 		const originalFetch = global.fetch;
 		const mockResponses = {
 			'https://example.com/remote-snippet.md': {
-				content: '# Remote Snippet\n\nThis content comes from a remote URL.',
+				content: `# Web Development Framework
+
+Build modern web applications with a **Visual Interface Builder** or **TypeScript SDK**. Components can be created using either approach with **full synchronization**, allowing both designers and developers to collaborate effectively.
+
+Get started with the [documentation](https://example.com/docs) or [quick start guide](https://example.com/quickstart).
+
+## Development Approaches
+
+### Visual Interface Builder
+
+A drag-and-drop interface that lets any team member create and manage components without coding.
+
+<img
+  src="assets/images/builder-demo.gif"
+  alt="Interface Builder Demo"
+  width="100%"
+  style="border-radius: 8px"
+/>
+
+### TypeScript SDK
+
+A code-first approach for developers who prefer working with type safety, IntelliSense, and modern tooling.
+
+\`\`\`typescript
+import { createComponent, defineProps } from "@example/framework";
+import { buttonStyles } from "./styles";
+
+const Button = createComponent({
+  name: "Button",
+  props: defineProps<{
+    variant: "primary" | "secondary";
+    size: "sm" | "md" | "lg";
+  }>(),
+  setup(props) {
+    return () => h("button", {
+      class: buttonStyles({ variant: props.variant, size: props.size })
+    });
+  }
+});
+
+export default Button;
+\`\`\`
+
+The **Visual Builder and TypeScript SDK work together seamlessly**: designers and developers can switch between tools and collaborate in real-time.
+
+## Common Use Cases
+
+This framework is perfect for building:
+- Marketing websites and landing pages
+- Dashboard and admin interfaces  
+- E-commerce storefronts and product catalogs
+- Documentation sites and knowledge bases
+
+You can also use it for **automated workflows** such as:
+- Generating design systems and component libraries
+- Creating responsive layouts from mockups
+- Building theme-aware component variants
+
+## Platform Features
+
+**Core capabilities** include:
+- Visual Builder with TypeScript SDK integration
+- Component-based architecture with reusable elements
+- Built-in styling system with design tokens
+- Responsive design tools and breakpoint management
+- Plugin system for extending functionality
+- Hot reload and live preview during development
+- Production-ready build optimization
+
+For detailed information, see the [Architecture Guide](https://example.com/architecture).
+
+## Technical Architecture
+
+The platform consists of several key components:
+
+- **component-api**: REST API for managing components, themes, and project configurations
+- **visual-builder**: Web-based interface for creating components visually
+- **typescript-sdk**: Type-safe SDK for programmatic component development  
+- **cli-tools**: Command-line utilities for project scaffolding and deployment
+- **runtime**: Core engine that renders components and handles state management
+- **ui-library**: Pre-built components for common interface patterns
+
+The framework integrates with popular tools like [React](https://reactjs.org), [Vue](https://vuejs.org), and [Svelte](https://svelte.dev) for maximum compatibility.
+
+## Open Source License
+
+This framework is available under the **MIT License**, allowing free use in both commercial and non-commercial projects.
+
+The project welcomes contributions from the community. Check out our [contributing guidelines](https://example.com/contributing) to get involved.
+
+[Join our Discord](https://discord.gg/example) for support, feature discussions, and community updates.`,
 			},
 		};
 
@@ -335,12 +425,12 @@ tap.test('mdxSnippet plugin - Remote Files', (t) => {
 
 		st.match(
 			result,
-			/# Remote Snippet/,
+			/# Web Development Framework/,
 			'Should include remote snippet content'
 		);
 		st.match(
 			result,
-			/This content comes from a remote URL\./,
+			/Build modern web applications/,
 			'Should include full remote snippet'
 		);
 		st.end();

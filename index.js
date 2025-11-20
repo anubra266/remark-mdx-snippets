@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import remarkStringify from 'remark-stringify';
 import remarkMdx from 'remark-mdx';
 import {visit} from 'unist-util-visit';
+import {VFile as VFileClass} from 'vfile';
 
 /**
  * @typedef {import('mdast').RootContent} RootContent
@@ -176,9 +177,18 @@ export function mdxSnippet(options = {}) {
 									processor: unified,
 								});
 
-							const ast = snippetProcessor().parse(content);
-							const fileObj = {value: content, path: sourceFile, data: {}};
-							return snippetProcessor().run(ast, fileObj);
+							// For remote files, use basic remark processing with snippet support
+							const simpleProcessor = (unified ?? remark())().use(mdxSnippet, {
+								snippetsDir,
+								fileAttribute,
+								elementName,
+								processor: unified,
+							});
+
+							const ast = simpleProcessor.parse(content);
+							// @ts-ignore
+							const vfile = new VFileClass({value: content, path: sourceFile});
+							return simpleProcessor.run(ast, vfile);
 						} else {
 							// For local files, use the full processor including MDX
 							const snippetProcessor = (unified ?? remark())
